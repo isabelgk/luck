@@ -26,13 +26,13 @@ local vels = {100, 100, 100, 0, 100, 100, 0}
 local prob_mode = false
 local prob_mode_node = 1
 local probs = {
-    {7, 2, 3, 1, 0, 3, 1},
-    {7, 7, 7, 7, 7, 7, 7},
-    {7, 7, 7, 7, 7, 7, 7},
-    {7, 7, 7, 7, 7, 7, 7},
-    {7, 7, 7, 7, 7, 7, 7},
-    {7, 7, 7, 7, 7, 7, 7},
-    {7, 7, 7, 7, 7, 7, 7}
+    {1, 7, 1, 1, 1, 1, 1},
+    {1, 1, 7, 1, 1, 1, 1},
+    {1, 1, 1, 7, 1, 1, 1},
+    {1, 1, 1, 1, 7, 1, 1},
+    {1, 1, 1, 1, 1, 7, 1},
+    {1, 1, 1, 1, 1, 1, 7},
+    {7, 1, 1, 1, 1, 1, 1}
 }
 
 
@@ -53,6 +53,7 @@ function enc(n, delta)
         end
     elseif n == 2 and prob_mode == true then
         prob_mode_node = (prob_mode_node + delta - 1) % 7 + 1
+    
     -- Changing values
     elseif n == 3 and prob_mode == false then
         if mode_index == 1 then  -- Update current pitch
@@ -62,8 +63,9 @@ function enc(n, delta)
             local old_val = vels[vel_index]
             vels[vel_index] = util.clamp(old_val + delta, 0, 127)
         end
-    else
-        --
+    elseif n == 3 and prob_mode == true then
+        local old_val = probs[node_index][prob_mode_node]
+        probs[node_index][prob_mode_node] = util.clamp(old_val + delta, 0, 7)
     end
 
     redraw()
@@ -88,11 +90,12 @@ function key(n, z)
 end
 
 -- DRAWING
+local full_rad = 22  -- Looks nice with this radius
+local node_rad = 8
+
 local function node_draw(index, level, line_width)
-    local theta = (2 * math.pi / 7) * (index)
+    local theta = (2 * math.pi / 7) * index
     theta = theta + math.pi  -- Rotate 180 degrees
-    local full_rad = 22  -- Looks nice with this radius
-    local node_rad = 8
 
     -- To Cartesian:
     local x = full_rad * math.cos(theta) + 64  -- Centered horizontally
@@ -127,8 +130,7 @@ local function node_draw(index, level, line_width)
         end
     end
 
-
-    -- Write the text
+    -- Write the mode text
     screen.font_size(8)
     screen.move(0, 60)
     screen.level(4)
@@ -143,6 +145,20 @@ local function node_draw(index, level, line_width)
             screen.text(tostring(vels[index]))
         end
     end
+end
+
+local function prob_text_draw(index)
+    local theta = (2 * math.pi / 7) * index
+    theta = theta + math.pi  -- Rotate 180 degrees
+
+    -- To Cartesian:
+    local x = full_rad * math.cos(theta) + 64  -- Centered horizontally
+    local y = full_rad * math.sin(theta) + 32  -- Centered vertically
+    screen.level(4)
+    screen.font_size(8)
+    screen.move(x - 1, y + 2)
+    screen.text(probs[node_index][index])
+    screen.stroke()
 end
 
 function redraw()
@@ -169,6 +185,10 @@ function redraw()
         end
 
         node_draw(i, l, w)
+
+        if prob_mode == true then
+            prob_text_draw(i)
+        end
     end
 
     screen.update()
