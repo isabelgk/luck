@@ -9,8 +9,6 @@
 
 MusicUtil = require "musicutil"
 
---local screen_dirty = true
-
 notes_off_metro = metro.init()
 play = false
 
@@ -26,8 +24,9 @@ local vel_index = 1
 local vels = {100, 100, 100, 0, 100, 100, 0}
 
 local prob_mode = false
+local prob_mode_node = 1
 local probs = {
-    {7, 7, 7, 7, 7, 7, 7},
+    {7, 2, 3, 1, 0, 3, 1},
     {7, 7, 7, 7, 7, 7, 7},
     {7, 7, 7, 7, 7, 7, 7},
     {7, 7, 7, 7, 7, 7, 7},
@@ -39,21 +38,23 @@ local probs = {
 
 function enc(n, delta)
     -- Changing modes
-    if n == 1 then
+    if n == 1 and prob_mode == false then
         mode_index = util.clamp(mode_index + delta, 1, 2)
 
     -- Changing nodes
-    elseif n == 2 then
+    elseif n == 2 and prob_mode == false then
         node_index = (node_index + delta - 1) % 7 + 1
+        prob_mode_node = node_index
         -- Update respective mode indices
         if mode_index == 1 then
             pitch_index = node_index
         elseif mode_index == 2 then
             vel_index = node_index
         end
-
+    elseif n == 2 and prob_mode == true then
+        prob_mode_node = (prob_mode_node + delta - 1) % 7 + 1
     -- Changing values
-    else
+    elseif n == 3 and prob_mode == false then
         if mode_index == 1 then  -- Update current pitch
             local old_val = pitches[pitch_index]
             pitches[pitch_index] = util.clamp(old_val + delta, 0, 127)
@@ -61,6 +62,8 @@ function enc(n, delta)
             local old_val = vels[vel_index]
             vels[vel_index] = util.clamp(old_val + delta, 0, 127)
         end
+    else
+        --
     end
 
     redraw()
@@ -74,7 +77,11 @@ function key(n, z)
             play = true
         end
     elseif n == 3 then
-        prob_mode = z
+        if z == 1 then
+            prob_mode = true
+        else
+            prob_mode = false
+        end
     end
 
     redraw()
@@ -82,8 +89,8 @@ end
 
 -- DRAWING
 local function node_draw(index, level, line_width)
-    local theta = (2 * math.pi / 7) * (index);
-    theta = theta + math.pi;  -- Rotate 180 degrees
+    local theta = (2 * math.pi / 7) * (index)
+    theta = theta + math.pi  -- Rotate 180 degrees
     local full_rad = 22  -- Looks nice with this radius
     local node_rad = 8
 
@@ -104,15 +111,19 @@ local function node_draw(index, level, line_width)
     -- Draw the probability connections
     local center_x = 64
     local center_y = 32
-    -- local 
+    local from_x = (full_rad - node_rad) * math.cos(theta) + 64
+    local from_y = (full_rad - node_rad) * math.sin(theta) + 32
 
-    for i = 1, 7 do
+    if index == node_index then
+        for i = 1, 7 do
+            local to_theta = (2 * math.pi / 7) * i + math.pi
+            local to_x = (full_rad - node_rad) * math.cos(to_theta) + 64
+            local to_y = (full_rad - node_rad) * math.sin(to_theta) + 32
 
-        screen.level(probs[index][i] * 2)
-        if i == index then
-
-        else
-        
+            screen.line_width(1)
+            screen.level(probs[index][i] * 2)
+            screen.curve(from_x, from_y, center_x, center_y, to_x, to_y)
+            screen.stroke()
         end
     end
 
@@ -120,6 +131,7 @@ local function node_draw(index, level, line_width)
     -- Write the text
     screen.font_size(8)
     screen.move(0, 60)
+    screen.level(4)
     if mode_index == 1 and index == node_index then  -- pitch
         if pitches[index] then
             screen.text(MusicUtil.note_num_to_name(pitches[index], true))
@@ -145,10 +157,17 @@ function redraw()
     for i = 1, 7 do
         local l, w
         if i == node_index then
-            l, w = 8, 2
+            w = 2
         else
-            l, w = 1, 1
+            w = 1
         end
+
+        if (i == prob_mode_node and prob_mode == true) or (i == node_index and prob_mode == false) then
+            l = 8
+        else
+            l = 1
+        end
+
         node_draw(i, l, w)
     end
 
