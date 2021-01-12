@@ -3,9 +3,15 @@
 -- seven nodes to grant you 
 -- good fortune
 --
+--
+-- @iggylabs 2021
+--
 -- E1: mode
--- E2: 
+-- E2: select node 
 -- E3: set value
+-- K2: start/stop
+-- K3: hold down for probability 
+--     mode
 
 MusicUtil = require "musicutil"
 
@@ -21,7 +27,7 @@ local pitch_index = 1
 local pitches = {44, 45, 46, 47, 48, 49, 50}
 
 local vel_index = 1
-local vels = {100, 100, 100, 0, 100, 100, 0}
+local vels = {100, 100, 100, 100, 100, 100, 100}
 
 local prob_mode = false
 local prob_mode_node = 1
@@ -83,6 +89,7 @@ function key(n, z)
             prob_mode = true
         else
             prob_mode = false
+            prob_mode_node = node_index
         end
     end
 
@@ -91,15 +98,17 @@ end
 
 -- DRAWING
 local full_rad = 22  -- Looks nice with this radius
-local node_rad = 8
+local node_rad = 7
+local left_margin = 64
+local top_margin = 32
 
 local function node_draw(index, level, line_width)
     local theta = (2 * math.pi / 7) * index
     theta = theta + math.pi  -- Rotate 180 degrees
 
     -- To Cartesian:
-    local x = full_rad * math.cos(theta) + 64  -- Centered horizontally
-    local y = full_rad * math.sin(theta) + 32  -- Centered vertically
+    local x = full_rad * math.cos(theta) + left_margin  -- Centered horizontally
+    local y = full_rad * math.sin(theta) + top_margin  -- Centered vertically
 
     -- Make any of the previous movement invisible
     screen.level(0)
@@ -112,10 +121,10 @@ local function node_draw(index, level, line_width)
     screen.stroke()
 
     -- Draw the probability connections
-    local center_x = 64
-    local center_y = 32
-    local from_x = (full_rad - node_rad) * math.cos(theta) + 64
-    local from_y = (full_rad - node_rad) * math.sin(theta) + 32
+    local center_x = left_margin
+    local center_y = top_margin
+    local from_x = (full_rad - node_rad) * math.cos(theta) + left_margin
+    local from_y = (full_rad - node_rad) * math.sin(theta) + top_margin
 
     if index == node_index then
         for i = 1, 7 do
@@ -129,21 +138,16 @@ local function node_draw(index, level, line_width)
             screen.stroke()
         end
     end
+end
 
-    -- Write the mode text
+local function mode_info_text_draw(i)
     screen.font_size(8)
     screen.move(0, 60)
     screen.level(4)
-    if mode_index == 1 and index == node_index then  -- pitch
-        if pitches[index] then
-            screen.text(MusicUtil.note_num_to_name(pitches[index], true))
-        else
-            print(tostring(index))
-        end
-    elseif mode_index == 2 and index == node_index then  -- velocity
-        if vels[index] then
-            screen.text(tostring(vels[index]))
-        end
+    if mode_index == 1 then  -- pitch
+        screen.text(MusicUtil.note_num_to_name(pitches[i], true))
+    elseif mode_index == 2 then  -- velocity
+        screen.text(tostring(vels[i]))
     end
 end
 
@@ -152,8 +156,8 @@ local function prob_text_draw(index)
     theta = theta + math.pi  -- Rotate 180 degrees
 
     -- To Cartesian:
-    local x = full_rad * math.cos(theta) + 64  -- Centered horizontally
-    local y = full_rad * math.sin(theta) + 32  -- Centered vertically
+    local x = full_rad * math.cos(theta) + left_margin  -- Centered horizontally
+    local y = full_rad * math.sin(theta) + top_margin  -- Centered vertically
     screen.level(4)
     screen.font_size(8)
     screen.move(x - 1, y + 2)
@@ -169,7 +173,13 @@ function redraw()
     screen.move(0, 10)
     screen.text(mode_names[mode_index])
 
-    -- draw boxes
+    if prob_mode then
+        mode_info_text_draw(prob_mode_node)
+    else
+        mode_info_text_draw(node_index)
+    end
+
+    -- draw node
     for i = 1, 7 do
         local l, w
         if i == node_index then
@@ -185,10 +195,7 @@ function redraw()
         end
 
         node_draw(i, l, w)
-
-        if prob_mode == true then
-            prob_text_draw(i)
-        end
+        prob_text_draw(i)
     end
 
     screen.update()
