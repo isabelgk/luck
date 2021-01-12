@@ -13,6 +13,8 @@
 -- K3: hold down for probability 
 --     mode
 
+
+engine.name = "PolyPerc"
 MusicUtil = require "musicutil"
 
 notes_off_metro = metro.init()
@@ -20,11 +22,13 @@ play = false
 
 local node_index = 1
 
+local node_to_play = 1
+
 local mode_index = 1
 local mode_names = {"pitch", "vel"}
 
 local pitch_index = 1
-local pitches = {44, 45, 46, 47, 48, 49, 50}
+local pitches = {48, 50, 52, 53, 55, 57, 59}
 
 local vel_index = 1
 local vels = {100, 100, 100, 100, 100, 100, 100}
@@ -32,16 +36,67 @@ local vels = {100, 100, 100, 100, 100, 100, 100}
 local prob_mode = false
 local prob_mode_node = 1
 local probs = {
-    {1, 7, 1, 1, 1, 1, 1},
-    {1, 1, 7, 1, 1, 1, 1},
-    {1, 1, 1, 7, 1, 1, 1},
-    {1, 1, 1, 1, 7, 1, 1},
-    {1, 1, 1, 1, 1, 7, 1},
-    {1, 1, 1, 1, 1, 1, 7},
-    {7, 1, 1, 1, 1, 1, 1}
+    {0, 7, 0, 0, 0, 0, 0},
+    {0, 0, 7, 0, 0, 0, 0},
+    {0, 0, 0, 7, 0, 0, 0},
+    {0, 0, 0, 0, 7, 0, 0},
+    {0, 0, 0, 0, 0, 7, 0},
+    {0, 0, 0, 0, 0, 0, 7},
+    {7, 0, 0, 0, 0, 0, 0}
 }
 
 
+-- =====
+-- SETUP
+-- =====
+function init()
+    params:add_number("tempo", "tempo", 20, 240, 88)
+    counter = metro.init(tick, 0.25, -1)
+    counter:stop()
+end
+
+-- ===========
+-- TIME + PLAY
+-- ===========
+local function get_next_node(current_node)
+    local ps = probs[current_node]  -- Probabilities for current node
+    local weighted_list = {}
+
+    -- For each probability (0-7), insert that number of elements (the
+    -- value of the node index) into the weighted list
+    for i = 1, 7 do  -- Each node index
+        local p = probs[current_node][i]  -- Probability for currently editing node
+        if p > 0 then
+            for j = 1, p do
+                table.insert(weighted_list, i)  -- Add that many times into weighted list
+            end
+        end
+    end
+
+    -- Now pick randomly from the weighted list and get back the index of the next node
+    return weighted_list[math.random(#weighted_list)]
+end
+
+local function midi_to_hz(note)
+    return (440 / 32) * (2 ^ ((note - 9) / 12))
+end
+
+function tick(c)
+    -- Get next node from the last played one
+    node_to_play = get_next_node(node_to_play)
+
+    -- Play note
+    engine.amp(vels[node_to_play] / 127)
+    engine.hz(midi_to_hz(pitches[node_to_play]))
+
+    -- Redraw the screen
+    redraw()
+end
+
+
+-- ========
+-- INTERACT
+-- ========
 function enc(n, delta)
     -- Changing modes
     if n == 1 and prob_mode == false then
@@ -78,11 +133,13 @@ function enc(n, delta)
 end
 
 function key(n, z)
-    if n == 2 then
+    if n == 2 and z == 1 then
         if play then
             play = false
+            counter:stop()
         else
             play = true
+            counter:start()
         end
     elseif n == 3 then
         if z == 1 then
@@ -96,11 +153,33 @@ function key(n, z)
     redraw()
 end
 
+-- ========
 -- DRAWING
-local full_rad = 22  -- Looks nice with this radius
+-- =========
+local full_rad = 21  -- Looks nice with this radius
 local node_rad = 7
 local left_margin = 64
 local top_margin = 32
+
+function indicator_draw(index)
+    local theta = (2 * math.pi / 7) * index
+    theta = theta + math.pi  -- Rotate 180 degrees
+
+    -- To Cartesian:
+    local x = (full_rad + node_rad + 3) * math.cos(theta) + left_margin  -- Centered horizontally
+    local y = (full_rad + node_rad + 3) * math.sin(theta) + top_margin  -- Centered vertically
+
+    -- Make any of the previous movement invisible
+    -- screen.level(0)
+    -- screen.stroke()
+    
+    -- Draw the circle
+    screen.line_width(1)
+    screen.level(8)
+    screen.circle(x, y, 2)
+    screen.fill()
+    screen.stroke()
+end
 
 local function node_draw(index, level, line_width)
     local theta = (2 * math.pi / 7) * index
@@ -196,6 +275,9 @@ function redraw()
 
         node_draw(i, l, w)
         prob_text_draw(i)
+        if i == node_to_play and play then
+            indicator_draw(i)
+        end
     end
 
     screen.update()
